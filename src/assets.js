@@ -13,26 +13,37 @@ const TEX = [
   'pine_bark_Diffuse', 'pine_bark_nor_gl',
 ];
 
+// 載入失敗自動重試（本機伺服器偶爾會掉連線）
+async function retry(fn, name, tries = 4) {
+  for (let i = 0; ; i++) {
+    try { return await fn(); }
+    catch (e) {
+      if (i >= tries - 1) throw new Error(`素材載入失敗：${name}`);
+      await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+}
+
 export async function loadAssets(renderer, onProgress) {
   const mgr = new THREE.LoadingManager();
   mgr.onProgress = (_u, loaded, total) => onProgress && onProgress(loaded / total);
   const tl = new THREE.TextureLoader(mgr);
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
   const tex = {};
-  const jobs = TEX.map((name) => tl.loadAsync(`assets/tex/${name}.jpg`).then((t) => {
+  const jobs = TEX.map((name) => retry(() => tl.loadAsync(`assets/tex/${name}.jpg`), name).then((t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = Math.min(8, maxAniso);
     t.colorSpace = name.endsWith('Diffuse') ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     tex[name] = t;
   }));
-  const hdr = new RGBELoader(mgr).setDataType(THREE.FloatType).loadAsync('assets/hdri/sky_2k.hdr');
-  const bg = tl.loadAsync('assets/hdri/sky_bg.jpg').then((t) => {
+  const hdr = retry(() => new RGBELoader(mgr).setDataType(THREE.FloatType).loadAsync('assets/hdri/sky_2k.hdr'), 'sky_2k.hdr');
+  const bg = retry(() => tl.loadAsync('assets/hdri/sky_bg.jpg'), 'sky_bg.jpg').then((t) => {
     t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 4; return t;
   });
   const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
-  const car = new GLTFLoader(mgr).setDRACOLoader(draco).loadAsync('assets/car/ferrari.glb');
-  const carAO = tl.loadAsync('assets/car/ferrari_ao.png');
+  const car = retry(() => new GLTFLoader(mgr).setDRACOLoader(draco).loadAsync('assets/car/ferrari.glb'), 'ferrari.glb');
+  const carAO = retry(() => tl.loadAsync('assets/car/ferrari_ao.png'), 'ferrari_ao.png');
   const [hdrTex, bgTex, carGltf, carAOTex] = await Promise.all([hdr, bg, car, carAO, ...jobs]);
   hdrTex.mapping = THREE.EquirectangularReflectionMapping;
   const sun = findSun(hdrTex);

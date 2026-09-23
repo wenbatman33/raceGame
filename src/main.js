@@ -540,5 +540,5 @@ class Game {
 // 讓載入畫面先渲染再建構世界
 requestAnimationFrame(() => setTimeout(() => {
   const g = new Game(); window.game = g;
-  g.init().catch((e) => { console.error(e); $('loadText').textContent = '載入失敗：' + e.message; });
+  g.init().catch((e) => { console.error(e); $('loadText').textContent = '載入失敗：' + (e?.message || e?.type || e) + '（請重新整理）'; });
 }, 30));

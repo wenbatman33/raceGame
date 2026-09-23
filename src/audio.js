@@ -1,12 +1,12 @@
 // WebAudio 合成音效：引擎（四缸）、輪胎尖叫、風切、撞擊、刮牆、回火
 export class GameAudio {
-  constructor() { this.ctx = null; this.muted = true; } // 預設靜音，K 鍵切換
+  constructor() { this.ctx = null; this.muted = false; this.volume = 0.7; } // 預設開啟、音量 70%，K 鍵切換
 
   start() {
     if (this.ctx) { this.ctx.resume(); return; }
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     this.ctx = ctx;
-    const master = ctx.createGain(); master.gain.value = 0.55; master.connect(ctx.destination);
+    const master = ctx.createGain(); master.gain.value = this.volume; master.connect(ctx.destination);
     this.master = master;
 
     // 噪音 buffer
@@ -57,10 +57,10 @@ export class GameAudio {
     const scg = ctx.createGain(); scg.gain.value = 0; sc.connect(scb); scb.connect(scg); scg.connect(master);
     this.scrape = scg;
     this.popCooldown = 0;
-    this.master.gain.value = this.muted ? 0 : 0.55;
+    this.master.gain.value = this.muted ? 0 : this.volume;
   }
 
-  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : 0.55; return this.muted; }
+  toggleMute() { this.muted = !this.muted; if (this.master) this.master.gain.value = this.muted ? 0 : this.volume; return this.muted; }
 
   burst(dur, freq, q, vol, type = 'lowpass') {
     const ctx = this.ctx; if (!ctx) return;
