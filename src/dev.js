@@ -1,10 +1,18 @@
 // DEV 微調工具：` 鍵或右下角齒輪開啟。所有滑桿即時生效，可拖曳 HUD，匯出 JSON。
-import { PHYS, CAM, VIS, DRIFT, LAYOUT_PC, LAYOUT_MOBILE, DEFAULTS } from './config.js';
+import { PHYS, ARC, CAM, VIS, DRIFT, LAYOUT_PC, LAYOUT_MOBILE, DEFAULTS } from './config.js';
 
-const STORE = 'akina_tune_v2';
-const OBJS = { PHYS, CAM, VIS, DRIFT, LAYOUT_PC, LAYOUT_MOBILE };
+const STORE = 'akina_tune_v5';
+const OBJS = { PHYS, ARC, CAM, VIS, DRIFT, LAYOUT_PC, LAYOUT_MOBILE };
 
 const SCHEMA = [
+  ['街機甩尾', 'ARC', [
+    ['enabled', '街機模式（X 鍵）', 'bool'], ['angle', '基本甩尾角°', 10, 55, 1], ['angleRange', '方向鍵角度增減°', 0, 30, 1],
+    ['angleRate', '角度追隨速度', 1, 15, 0.5], ['angleMin', '輕點甩尾角°', 0, 30, 1], ['holdTime', '按滿力道時間 s', 0.1, 3, 0.05], ['holdDecay', '放開後消退速度', 0.2, 5, 0.1], ['holdKeep', '方向鍵保留力道', 0, 1, 0.05], ['radiusTight', '最緊半徑 m', 6, 30, 0.5], ['radiusWide', '最寬半徑 m', 20, 90, 1],
+    ['accel', '甩尾油門加速', 0, 8, 0.1], ['decel', '甩尾自然減速', 0, 5, 0.1], ['brakeDecel', '甩尾煞車減速', 0, 20, 0.5],
+    ['maxGain', '最多加速 m/s', 0, 15, 0.5], ['yawK', '車頭修正強度', 1, 20, 0.5], ['exitTime', '回正時間 s', 0.1, 1.5, 0.05],
+    ['minSpeed', '最低進入速度 m/s', 3, 25, 0.5], ['stability', '防打轉輔助', 0, 8, 0.1], ['catchDeadzone', '防打轉介入角°', 2, 25, 0.5],
+    ['tcSlip', '循跡容許空轉', 0.05, 1, 0.01],
+  ]],
   ['輪胎 / 抓地', 'PHYS', [
     ['muFront', '前輪抓地 μ', 0.5, 2, 0.01], ['muRear', '後輪抓地 μ', 0.5, 2, 0.01],
     ['alphaPeak', '側滑峰值角 rad', 0.04, 0.3, 0.005], ['sxPeak', '縱向滑移峰值', 0.04, 0.3, 0.005],
@@ -207,6 +215,7 @@ export class DevPanel {
     if (!this.open) return;
     const w = car.wheels, n = ['FL', 'FR', 'RL', 'RR'];
     const lines = w.map((x, i) => `${n[i]} Fz ${x.Fz.toFixed(0).padStart(5)}  α ${(x.alpha * 57.3).toFixed(1).padStart(6)}°  sx ${x.sx.toFixed(2).padStart(6)}  s ${x.slip.toFixed(2).padStart(5)}`);
+    lines.push(`模式 ${car.drifting ? '甩尾中 ' + (car.driftDir > 0 ? '←' : '→') + ' 力道 ' + ((car.driftPower || 0) * 100).toFixed(0) + '%' : '抓地'}  循跡 ${(car.tc * 100).toFixed(0)}%`);
     lines.push(`速度 ${(car.speed * 3.6).toFixed(1)} km/h  甩尾角 ${car.driftAngle.toFixed(1)}°  偏航 ${car.yawRate.toFixed(2)} rad/s`);
     const g = this.game; lines.push(`FPS ${g.fps.toFixed(0)}  畫質 ${g.preset.label}  解析度 ${(g.resScale * 100).toFixed(0)}%  三角形 ${(g.renderer.info.render.triangles / 1000).toFixed(0)}k`);
     lines.push(`轉向 ${(car.steerAngle * 57.3).toFixed(1)}°  檔 ${car.gear}  rpm ${car.rpm.toFixed(0)}  ax ${car.axS.toFixed(1)} ay ${car.ayS.toFixed(1)}`);

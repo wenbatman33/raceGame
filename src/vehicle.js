@@ -1,6 +1,6 @@
 // 車輛物理：四輪合併滑移輪胎模型 + 重量轉移 + 後驅鎖定差速 + 引擎/變速箱
 // 座標：車體 local +z = 前方，+x = 左方；世界 y 向上，yaw 為繞 +y 旋轉
-import { PHYS } from './config.js';
+import { PHYS, ARC } from './config.js';
 
 const G = 9.81;
 const RPM_PER_RAD = 60 / (2 * Math.PI);
@@ -28,6 +28,8 @@ function tireCurve(s, slide, falloff) {
 }
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const DEG = Math.PI / 180;
+const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 export class Vehicle {
   constructor() {
@@ -54,6 +56,7 @@ export class Vehicle {
     this.impact = 0; this.scraping = false;
     this.trackIdx = -1;
     this.shiftEvent = 0;
+    this.drifting = false; this.driftDir = 1; this.driftAng = 0; this.driftExit = 0; this.flipCd = 0; this.tc = 1;
   }
 
   get speed() { return Math.hypot(this.vx, this.vz); }
@@ -150,6 +153,8 @@ export class Vehicle {
     // 倒檔時油門/煞車對調（自排）
     let throttle = inp.throttle, brake = inp.brake;
     if (this.gear === -1 && this.auto) { throttle = inp.brake; brake = inp.throttle; }
+    // 街機循跡控制：抓地行駛時限制後輪空轉
+    if (ARC.enabled && !this.drifting) throttle *= this.tc;
     this.throttle = throttle; this.brake = brake; this.handbrake = inp.handbrake;
 
     // ---- 轉向：速度敏感 + 反打輔助（前輪自動對齊行進方向） ----
@@ -250,6 +255,12 @@ export class Vehicle {
       w.spin += w.omega * dt;
     }
 
+    // 循跡控制狀態更新
+    const rs = Math.max(W[2].sx, W[3].sx);
+    this.tc = clamp(this.tc + (rs > ARC.tcSlip && speed > 1.5 ? -dt * 10 : dt * 3), 0.2, 1);
+    // 街機甩尾：接管車體運動
+    if (this._arcade(dt, inp, env, speed)) return;
+
     // 局部 → 世界
     let Fwx = FxL * cs + FzL * sn;
     let Fwz = -FxL * sn + FzL * cs;
@@ -272,6 +283,71 @@ export class Vehicle {
     this.axS += (FzL / m - this.axS) * k;
     this.ayS += (FxL / m - this.ayS) * k;
     this.Iz = Iz;
+  }
+
+  // ---- 街機甩尾：空白鍵 + 方向鍵進入，方向鍵控制角度與半徑 ----
+  _arcade(dt, inp, env, speed) {
+    const A = ARC, P = this.P;
+    if (!A.enabled) { this.drifting = false; return false; }
+    const velYaw = Math.atan2(this.vx, this.vz);
+    const beta = angDiff(this.yaw, velYaw);
+    const vLong = this.vLong;
+    this.flipCd -= dt;
+    if (!this.drifting) {
+      if (inp.drift && Math.abs(inp.steer) > 0.15 && speed > A.minSpeed && vLong > 0) {
+        this.drifting = true; this.driftDir = Math.sign(inp.steer); this.driftExit = 0;
+        this.driftSpeed = speed; this.driftAng = Math.abs(beta); this.driftHold = 0;
+      } else {
+        // 防打轉：車尾滑出超過容許角度時自動拉回
+        const dz = A.catchDeadzone * DEG;
+        if (speed > 5 && Math.abs(beta) > dz) this.yawRate -= (beta - Math.sign(beta) * dz) * A.stability * 6 * dt;
+        return false;
+      }
+    }
+    // 空白鍵按住時反向壓到底 → 左右切換
+    if (inp.drift && inp.steer * this.driftDir < -0.6 && this.flipCd <= 0) { this.driftDir = -this.driftDir; this.driftAng = -this.driftAng; this.flipCd = 0.6; }
+    const d = this.driftDir;
+    const si = clamp(inp.steer * d, -1, 1);
+    const hold = inp.drift || si > 0.25;
+    this.driftExit = hold ? 0 : this.driftExit + dt;
+    if (this.driftExit > A.exitTime || speed < A.minSpeed * 0.6 || this.impact > 4) { this.drifting = false; this.yawRate *= 0.3; return false; }
+    const fade = 1 - this.driftExit / A.exitTime;
+    // 力道：按住空白鍵越久越大；放開後消退（方向鍵壓著時保留一點）
+    if (inp.drift) this.driftHold = Math.min(A.holdTime, this.driftHold + dt);
+    else {
+      // 方向鍵壓著：力道最多保留到 holdKeep，不會往上補
+      const floor = si > 0.25 ? Math.min(this.driftHold, A.holdKeep * A.holdTime) : 0;
+      this.driftHold = Math.max(floor, this.driftHold - dt * A.holdDecay);
+    }
+    const power = A.holdTime > 0 ? this.driftHold / A.holdTime : 1;
+    this.driftPower = power;
+    const full = clamp(A.angle + si * A.angleRange, 8, 60);
+    const target = (A.angleMin + (full - A.angleMin) * power) * DEG * fade;
+    this.driftAng += (target - this.driftAng) * Math.min(1, dt * A.angleRate);
+    // 力道小時路線較寬，力道大時依方向鍵收緊
+    const Rsteer = A.radiusWide + (A.radiusTight - A.radiusWide) * (si + 1) / 2;
+    const R = A.radiusWide * 1.3 + (Rsteer - A.radiusWide * 1.3) * power;
+    const omegaPath = d * (speed / R) * fade;
+    // 速度：油門補速、自然減速、煞車、坡度
+    const slopeAcc = -9.81 * (env.gx * Math.sin(velYaw) + env.gz * Math.cos(velYaw));
+    const acc = this.throttle * A.accel - A.decel - this.brake * A.brakeDecel + slopeAcc * 0.7 - (P.drag * speed * speed) / P.mass;
+    let v = clamp(speed + acc * dt, 0, Math.min(this.driftSpeed + A.maxGain, 60));
+    if (this.throttle < 0.1) this.driftSpeed = Math.min(this.driftSpeed, v + A.maxGain * 0.5);
+    const nv = velYaw + omegaPath * dt;
+    this.vx = Math.sin(nv) * v; this.vz = Math.cos(nv) * v;
+    const err = angDiff(nv + d * this.driftAng, this.yaw);
+    this.yawRate = omegaPath + clamp(err * A.yawK, -3.2, 3.2);
+    this.yaw += this.yawRate * dt;
+    this.x += this.vx * dt; this.z += this.vz * dt;
+    // 視覺：後輪空轉冒煙、前輪順滾
+    const R0 = P.wheelRadius;
+    this.rearOmega += ((v * 1.35 + 3) / R0 - this.rearOmega) * Math.min(1, dt * 10);
+    this.wheels[2].omega = this.wheels[3].omega = this.rearOmega;
+    this.wheels[0].omega = this.wheels[1].omega = (v * Math.cos(this.driftAng)) / R0;
+    const k = 1 - Math.exp(-dt / 0.1);
+    this.axS += (acc - this.axS) * k;
+    this.ayS += (d * v * Math.abs(omegaPath) * Math.cos(this.driftAng) - this.ayS) * k;
+    return true;
   }
 
   // 護欄 / 端牆碰撞（以四個車角點對賽道橫向距離判定）

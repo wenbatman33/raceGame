@@ -3,7 +3,7 @@ import { PHYS } from './config.js';
 
 const ACTIONS = {
   KeyM: 'toggleTrans', KeyC: 'camera', KeyR: 'reset', KeyT: 'restart', KeyN: 'night',
-  KeyK: 'mute', KeyG: 'quality', KeyH: 'help', Backquote: 'dev', F2: 'dev', Escape: 'pause',
+  KeyK: 'mute', KeyG: 'quality', KeyX: 'arcade', KeyV: 'nextCar', KeyH: 'help', Backquote: 'dev', F2: 'dev', Escape: 'pause',
 };
 
 export class Input {

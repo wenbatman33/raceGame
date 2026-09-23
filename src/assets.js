@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { CARS } from './config.js';
 
 const TEX = [
   'asphalt_02_Diffuse', 'asphalt_02_nor_gl', 'asphalt_02_Rough',
@@ -42,13 +43,14 @@ export async function loadAssets(renderer, onProgress) {
     t.anisotropy = 4; return t;
   });
   const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
-  const car = retry(() => new GLTFLoader(mgr).setDRACOLoader(draco).loadAsync('assets/car/ferrari.glb'), 'ferrari.glb');
-  const carAO = retry(() => tl.loadAsync('assets/car/ferrari_ao.png'), 'ferrari_ao.png');
-  const [hdrTex, bgTex, carGltf, carAOTex] = await Promise.all([hdr, bg, car, carAO, ...jobs]);
+  const gl = new GLTFLoader(mgr).setDRACOLoader(draco);
+  const cars = {};
+  const carJobs = CARS.map((c) => retry(() => gl.loadAsync(c.model), c.model).then((g) => { cars[c.id] = g; }));
+  const [hdrTex, bgTex] = await Promise.all([hdr, bg, ...carJobs, ...jobs]);
   hdrTex.mapping = THREE.EquirectangularReflectionMapping;
   const sun = findSun(hdrTex);
   clampHDR(hdrTex, 6); // 移除太陽亮點：環境光只保留天空，太陽交給有陰影的平行光
-  return { tex, hdr: hdrTex, bg: bgTex, car: carGltf, carAO: carAOTex, sun, horizon: horizonColor(hdrTex) };
+  return { tex, hdr: hdrTex, bg: bgTex, cars, sun, horizon: horizonColor(hdrTex) };
 }
 
 // 從 HDR 找出最亮像素 → 太陽方向（three.js equirect 對應）

@@ -42,7 +42,8 @@ export class Particles {
         void main(){
           vec4 mv = modelViewMatrix * vec4(position,1.0);
           gl_PointSize = size * scale / max(0.5, -mv.z);
-          vA = alpha; vFog = -mv.z; vRot = rot;
+          // 靠近鏡頭的煙淡出，避免整個畫面變白
+          vA = alpha * smoothstep(1.5, 7.0, -mv.z); vFog = -mv.z; vRot = rot;
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `

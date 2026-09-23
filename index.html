@@ -67,6 +67,16 @@
   .keys kbd, #help kbd { font: 700 12px Rajdhani, monospace; background: #22252c; border: 1px solid #444; border-bottom-width: 3px; border-radius: 4px; padding: 2px 7px; color: #fff; white-space: nowrap; }
   #startBtn { font: italic 700 26px Rajdhani, sans-serif; letter-spacing: 4px; background: var(--pink); color: #fff; border: 0; padding: 12px 42px; cursor: pointer; clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%); }
   #startBtn:hover { filter: brightness(1.15); }
+  #carSelect { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 8px; margin: 0 0 22px; }
+  .car-card { text-align: left; background: rgba(20,22,28,.8); border: 1px solid #3a3f4a; color: #fff; padding: 10px 12px; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; gap: 2px; }
+  .car-card:hover { border-color: #888; }
+  .car-card.on { border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink) inset; }
+  .power-row { grid-column: 1 / -1; display: flex; gap: 6px; align-items: center; font-size: 13px; color: #ccd; margin-top: 4px; }
+  .power-row button { background: rgba(20,22,28,.8); border: 1px solid #3a3f4a; color: #fff; padding: 5px 14px; cursor: pointer; font: 700 13px 'Noto Sans TC', sans-serif; }
+  .power-row button.on { border-color: var(--pink); background: rgba(255,45,111,.25); }
+  .car-card i { width: 22px; height: 6px; display: block; margin-bottom: 4px; }
+  .car-card b { font-size: 15px; } .car-card span { font: 700 13px Rajdhani, sans-serif; color: #ffd166; } .car-card em { font-style: normal; font-size: 11px; color: #aab; }
+  @media (max-width: 700px) { #carSelect { grid-template-columns: repeat(2, 1fr); } }
   #finish { background: rgba(0,0,0,.55); pointer-events: none; }
   .fin-box { background: rgba(10,12,16,.88); border-top: 4px solid var(--pink); padding: 28px 44px; text-align: center; min-width: 360px; }
   .fin-box h2 { margin: 0 0 12px; font: italic 900 46px Rajdhani, sans-serif; letter-spacing: 6px; }
@@ -125,16 +135,19 @@
 <div id="title" class="overlay">
   <div class="title-box">
     <h1>秋名山<span>AKINA DOWNHILL</span></h1>
-    <p>全長 2.9 km・落差 155 m・五連髮夾。從山頂一路下坡衝到終點，甩尾可累積分數倍率，撞到護欄會中斷連段。</p>
+    <p>全長 2.9 km・落差 155 m・五連髮夾。從山頂一路下坡衝到終點。<b style="color:#fff">轉彎時按住 Space＋方向鍵甩尾</b>，連續甩尾累積倍率，撞到護欄會中斷連段。</p>
     <div class="keys">
       <kbd>W / ↑</kbd><span>油門</span><kbd>S / ↓</kbd><span>煞車 / 倒車</span>
-      <kbd>A D / ← →</kbd><span>轉向</span><kbd>Space</kbd><span>手煞車</span>
+      <kbd>A D / ← →</kbd><span>轉向</span><kbd>Space</kbd><span>甩尾（按住＋方向鍵）</span>
       <kbd>E / Q</kbd><span>升 / 降檔</span><kbd>M</kbd><span>自排 / 手排</span>
       <kbd>C</kbd><span>切換視角</span><kbd>R</kbd><span>拉回路面</span>
       <kbd>T</kbd><span>重新開始</span><kbd>N</kbd><span>日 / 夜</span>
       <kbd>H</kbd><span>說明</span><kbd>`</kbd><span>DEV 微調</span>
       <kbd>K</kbd><span>音效開關</span><kbd>G</kbd><span>畫質 低/中/高</span>
+      <kbd>X</kbd><span>街機 / 模擬模式</span><kbd>V</kbd><span>換車</span>
     </div>
+    <div id="carSelect"></div>
+    <div id="credit" style="font-size:11px;color:#778;margin:-14px 0 16px"></div>
     <button id="startBtn">START ▸</button>
     <p style="font-size:13px;color:#8a919c;margin-top:18px">支援 Xbox / PS 手把：RT 油門・LT 煞車・A 手煞車・LB/RB 換檔・Y 視角</p>
   </div>
@@ -153,12 +166,12 @@
 
 <div id="help" class="overlay hide" onclick="this.classList.add('hide')">
   <div class="box">
-    <b style="color:var(--pink)">駕駛技巧</b><br>
-    ・入彎前 <kbd>S</kbd> 重煞讓重量前移，車尾變輕 → 轉向更容易甩出<br>
-    ・<kbd>Space</kbd> 手煞車點一下讓後輪鎖死，車尾滑出後立刻補油門<br>
-    ・甩尾中放開方向鍵，前輪會自動對準行進方向（反打輔助）<br>
-    ・油門控制甩尾角度：多給油 → 角度加大；收油 → 抓地恢復<br>
-    ・五連髮夾：外 → 內 → 外，出彎早點補油<br>
+    <b style="color:var(--pink)">街機甩尾（預設）</b><br>
+    ・轉彎時 <b>按住 Space ＋ 方向鍵</b> 就會甩出去<br>
+    ・甩尾中方向鍵往彎內壓 → 角度更大、彎更緊；往外 → 路線拉開<br>
+    ・油門補速度、<kbd>S</kbd> 減速；放開 Space 與方向鍵就自動回正<br>
+    ・按住 Space 往反方向壓到底 → 左右切換，連續髮夾一路甩過去<br>
+    ・<kbd>X</kbd> 切換成模擬模式（Space 變手煞車，純物理）<br>
     <span style="color:#888">點擊任意處關閉</span>
   </div>
 </div>

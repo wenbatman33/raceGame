@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>車模型檢視</title>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>body{margin:0;background:#222;color:#fff;font:13px sans-serif}#info{position:fixed;left:8px;top:8px;background:#000a;padding:6px 10px}</style>
+</head>
+<body>
+<div id="info"></div>
+<script type="module">
+// 開發用：?f=模型路徑，顯示模型與座標軸（紅 +x、綠 +y、藍 +z），四個角度俯視/側視
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+const f = new URLSearchParams(location.search).get('f');
+const view = new URLSearchParams(location.search).get('v') || 'top';
+const r = new THREE.WebGLRenderer({ antialias: true });
+r.setSize(innerWidth, innerHeight); document.body.appendChild(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x2a2d33);
+sc.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.5));
+const dl = new THREE.DirectionalLight(0xffffff, 2); dl.position.set(3, 5, 4); sc.add(dl);
+const gl = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/'));
+const g = await gl.loadAsync('../' + f);
+sc.add(g.scene);
+const box = new THREE.Box3().setFromObject(g.scene);
+const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+const R = Math.max(s.x, s.y, s.z);
+const ax = new THREE.AxesHelper(R * 0.8); ax.position.copy(c); sc.add(ax);
+sc.add(new THREE.Box3Helper(box, 0xffff00));
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 100);
+const d = R * 2.2;
+const pos = { top: [0, d, 0.001], front: [0, 0, d], side: [d, 0, 0], iso: [d * 0.7, d * 0.5, d * 0.7] }[view];
+cam.position.set(c.x + pos[0], c.y + pos[1], c.z + pos[2]); cam.lookAt(c);
+r.render(sc, cam);
+document.getElementById('info').textContent = `${f}  視角 ${view}  尺寸 ${s.toArray().map(v=>v.toFixed(2)).join(' × ')}  （紅+x 綠+y 藍+z）`;
+</script>
+</body>
+</html>

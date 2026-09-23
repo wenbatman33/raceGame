@@ -60,6 +60,56 @@ export const PHYS = {
   wallFriction: 0.35,
 };
 
+// 可選車輛：每台都是真實 glTF 模型。軸距/輪距/輪徑由模型自動量測後套進物理。
+// hp 為原廠馬力（powerScale 1.0 ≈ 250 匹）；phys 只列出與 PHYS 預設不同的參數
+// 新增車輛：把 glb 放進 assets/cars/，照格式加一筆（wheels 填模型內四個輪子節點名：左前、右前、左後、右後）
+export const CARS = [
+  { id: 'ae86', name: 'AE86 Trueno', hp: 130, kg: 950, desc: '秋名山之王，輕巧好甩', color: '#f4f4f2',
+    // 原檔 94MB 經 scripts/slimGlb.py 瘦身（移除內裝、貼圖 2048）
+    model: 'assets/cars/ae86_kouki.glb', length: 4.2,
+    wheels: ['FL_Wheel', 'FR_Wheel', 'RL_Wheel', 'RR_Wheel'],
+    steerParts: ['FL_Caliper', 'FR_Caliper', 'RL_Caliper', 'RR_Caliper'],
+    hide: /Shadow/, glassOpacity: 0.88,
+    credit: '「Toyota AE86 Black Limited Kouki」by TinoD2 / Martin Trafas (Sketchfab), CC-BY 4.0',
+    phys: { mass: 950, weightFront: 0.53, cgHeight: 0.5, muFront: 1.04, muRear: 1.0, finalDrive: 4.3, maxSteer: 0.72, inertiaScale: 0.9 } },
+  { id: 'v8', name: 'V8 中置超跑', hp: 390, kg: 1380, desc: '最快，油門要收著踩', color: '#f4f4f2',
+    model: 'assets/car/ferrari.glb', draco: true, rotY: Math.PI, wheels: ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr'],
+    paint: /^(body|blue|yellow_trim|centre.*)$/, tail: /^lights_red$/, head: /^lights$/,
+    credit: 'Ferrari 458 model: three.js examples',
+    phys: { mass: 1380, weightFront: 0.45, cgHeight: 0.46, muFront: 1.12, muRear: 1.06, finalDrive: 4.4 } },
+];
+
+// 動力等級：套在原廠馬力上
+export const POWER_LEVELS = [
+  { id: 'entry', label: '入門', k: 0.6 },
+  { id: 'sport', label: '運動', k: 0.8 },
+  { id: 'full', label: '原廠', k: 1.0 },
+];
+
+// 街機甩尾（空白鍵 + 方向鍵）
+export const ARC = {
+  enabled: true,         // true = 街機模式，false = 純模擬（空白鍵 = 手煞車）
+  angle: 30,             // 按滿力道時的基本甩尾角 (度)
+  angleRange: 12,        // 方向鍵可增減的角度
+  angleRate: 3.5,        // 角度追隨速度
+  angleMin: 10,          // 輕點空白鍵的甩尾角 (度)
+  holdTime: 1.0,         // 按住多久達到最大力道 (s)
+  holdDecay: 1.2,        // 放開後力道消退速度
+  holdKeep: 0.3,         // 放開空白鍵但方向鍵壓著時保留的力道
+  radiusTight: 12,       // 往彎內壓時的甩尾半徑 (m)
+  radiusWide: 42,        // 反打時的甩尾半徑 (m)
+  accel: 3.0,            // 甩尾中油門加速 m/s²
+  decel: 1.0,            // 甩尾中自然減速 m/s²
+  brakeDecel: 8,         // 甩尾中煞車減速 m/s²
+  maxGain: 3,            // 甩尾中最多比進入速度快多少 m/s
+  yawK: 7,               // 車頭角度修正強度
+  exitTime: 0.35,        // 放開後回正時間 (s)
+  minSpeed: 8,           // 可進入甩尾的最低速度 m/s
+  stability: 3,          // 抓地時防打轉輔助
+  catchDeadzone: 7,      // 防打轉介入角度 (度)
+  tcSlip: 0.15,          // 循跡控制容許空轉
+};
+
 export const CAM = {
   distance: 6.8,
   height: 2.0,
@@ -77,7 +127,7 @@ export const VIS = {
   carColor: '#f4f4f2',
   bodyRoll: 0.030,       // 每 m/s² 車身側傾
   bodyPitch: 0.012,
-  smokeAmount: 1.0,
+  smokeAmount: 0.5,
   sunElevation: 22,
   sunAzimuth: 0,         // 天空 HDRI 旋轉角度
   fogDensity: 0.0011,
@@ -85,7 +135,7 @@ export const VIS = {
   ao: true,              // 環境光遮蔽
   bloom: 0.25,
   quality: 'medium',     // low / medium / high
-  dynamicRes: true,      // 掉幀時自動降解析度
+  dynamicRes: false,     // 掉幀時自動降解析度（預設關閉：鎖 30fps 的環境會被誤判而變糊）
   night: false,
 };
 
@@ -116,4 +166,4 @@ export const LAYOUT_MOBILE = {
   hint:    { x: 0.50, y: 0.97, scale: 0.7 },
 };
 
-export const DEFAULTS = JSON.parse(JSON.stringify({ PHYS, CAM, VIS, DRIFT, LAYOUT_PC, LAYOUT_MOBILE }));
+export const DEFAULTS = JSON.parse(JSON.stringify({ PHYS, ARC, CAM, VIS, DRIFT, LAYOUT_PC, LAYOUT_MOBILE }));

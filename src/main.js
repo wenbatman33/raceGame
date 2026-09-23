@@ -8,7 +8,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { N8AOPass } from 'n8ao';
 import { loadAssets } from './assets.js';
-import { PHYS, CAM, VIS, DRIFT } from './config.js';
+import { PHYS, ARC, CAM, VIS, DRIFT, CARS, POWER_LEVELS, DEFAULTS } from './config.js';
 import { Track } from './track.js';
 import { buildWorld } from './world.js';
 import { buildCar } from './carModel.js';
@@ -23,7 +23,7 @@ const PHYS_DT = 1 / 600;
 // 畫質預設：pr=像素比上限、shadow=陰影貼圖、range=陰影範圍(m)、tree/grass=高細節距離(m)
 const PRESETS = {
   low:    { label: '低', pr: 0.85, ao: false, bloom: false, smaa: false, shadow: 1024, range: 35, tree: 110, grass: 60,  treeShadow: false },
-  medium: { label: '中', pr: 1.0,  ao: false, bloom: true,  smaa: true,  shadow: 2048, range: 45, tree: 160, grass: 100, treeShadow: true },
+  medium: { label: '中', pr: 1.25, ao: false, bloom: true,  smaa: true,  shadow: 2048, range: 45, tree: 160, grass: 100, treeShadow: true },
   high:   { label: '高', pr: 1.5,  ao: true,  bloom: true,  smaa: true,  shadow: 4096, range: 60, tree: 230, grass: 150, treeShadow: true },
 };
 const $ = (id) => document.getElementById(id);
@@ -86,7 +86,8 @@ class Game {
     // ---- 世界 ----
     this.track = new Track();
     this.world = buildWorld(this.scene, this.track, assets);
-    this.carView = buildCar(assets.car, assets.carAO);
+    this.carViews = {};
+    this.carView = this.getCarView(CARS[0].id);
     this.scene.add(this.carView.root);
     this.car = new Vehicle();
     this.smoke = new Particles(this.scene, 2200, { color: 0xe4e4e4, drag: 1.4, gravity: 0.35 });
@@ -135,6 +136,9 @@ class Game {
     this.restart(false);
 
     $('startBtn').onclick = () => this.begin();
+    this.powerId = localStorage.getItem('akina_power') || 'full';
+    this.buildCarSelect();
+    this.selectCar(localStorage.getItem('akina_car') || CARS[0].id, false);
     $('muteBtn').onclick = (e) => { e.currentTarget.blur(); this.action('mute'); };
     $('qualityBtn').onclick = (e) => { e.currentTarget.blur(); this.action('quality'); };
     this.resScale = 1; this.fpsAcc = 0; this.fpsN = 0; this.fps = 60;
@@ -216,6 +220,55 @@ class Game {
     if (s !== this.resScale) { this.resScale = s; this.applyPixelRatio(); }
   }
 
+  // ---------- 選車 ----------
+  getCarView(id) {
+    if (!this.carViews[id]) {
+      const def = CARS.find((c) => c.id === id);
+      this.carViews[id] = buildCar(def, this.assets.cars[id]);
+    }
+    return this.carViews[id];
+  }
+
+  get power() { return POWER_LEVELS.find((p) => p.id === this.powerId) || POWER_LEVELS[1]; }
+
+  buildCarSelect() {
+    const box = $('carSelect');
+    const hp = (c) => Math.round(c.hp * this.power.k);
+    box.innerHTML = CARS.map((c) => `<button class="car-card" data-car="${c.id}">
+      <i style="background:${c.color}"></i><b>${c.name}</b><span>${hp(c)} 匹・${c.kg} kg</span><em>${c.desc}</em></button>`).join('')
+      + `<div class="power-row">動力：${POWER_LEVELS.map((p) => `<button class="pw${p.id === this.powerId ? ' on' : ''}" data-pw="${p.id}">${p.label}</button>`).join('')}</div>`;
+    box.onclick = (e) => {
+      const b = e.target.closest('.car-card');
+      if (b) return this.selectCar(b.dataset.car, true);
+      const p = e.target.closest('[data-pw]');
+      if (p) { this.powerId = p.dataset.pw; try { localStorage.setItem('akina_power', this.powerId); } catch {} this.buildCarSelect(); this.selectCar(this.carId, false); }
+    };
+    document.querySelectorAll('.car-card').forEach((b) => b.classList.toggle('on', b.dataset.car === this.carId));
+  }
+
+  selectCar(id, save) {
+    const c = CARS.find((x) => x.id === id) || CARS[0];
+    // 換模型
+    const view = this.getCarView(c.id);
+    if (view !== this.carView) { this.scene.remove(this.carView.root); this.carView = view; this.scene.add(view.root); }
+    // 規格：預設 → 車款 → 模型量測尺寸 → 動力等級
+    const d = view.dims;
+    Object.assign(PHYS, JSON.parse(JSON.stringify(DEFAULTS.PHYS)), c.phys, {
+      wheelbase: d.wheelbase, track: d.track, wheelRadius: d.wheelRadius, halfWidth: d.halfWidth,
+      powerScale: (c.hp / 250) * this.power.k,
+    });
+    const a = PHYS.wheelbase * (1 - PHYS.weightFront), b = PHYS.wheelbase - a;
+    PHYS.frontLen = a + d.frontOver - 0.08; PHYS.rearLen = b + d.rearOver - 0.08;
+    view.align(a);
+    VIS.carColor = c.color;
+    this.carId = c.id;
+    this.applyVisuals();
+    document.querySelectorAll('.car-card').forEach((el) => el.classList.toggle('on', el.dataset.car === c.id));
+    $('credit').textContent = c.credit || '';
+    if (save) { try { localStorage.setItem('akina_car', c.id); } catch {} }
+    if (this.state !== 'title') { this.restart(true); this.flash(`${c.name}・${Math.round(c.hp * this.power.k)} 匹（${this.power.label}）`); }
+  }
+
   // ---------- 流程 ----------
   begin() {
     if (this.state !== 'title') return;
@@ -286,6 +339,8 @@ class Game {
         this.flash(m ? '靜音' : '音效開啟'); break;
       }
       case 'help': $('help').classList.toggle('hide'); break;
+      case 'nextCar': { const i = CARS.findIndex((c) => c.id === this.carId); this.selectCar(CARS[(i + 1) % CARS.length].id, true); break; }
+      case 'arcade': ARC.enabled = !ARC.enabled; this.car.drifting = false; this.dev.save(); this.flash(ARC.enabled ? '街機模式：空白鍵甩尾' : '模擬模式：空白鍵手煞車'); break;
       case 'quality': {
         const order = ['low', 'medium', 'high'];
         VIS.quality = order[(order.indexOf(VIS.quality) + 1) % 3];
@@ -316,8 +371,9 @@ class Game {
     const car = this.car;
 
     // 倒數：鎖車但可轟油
-    let drive = { steer: inp.steer, throttle: inp.throttle, brake: inp.brake, handbrake: inp.handbrake };
-    if (this.state === 'title' || this.state === 'countdown') drive = { steer: inp.steer, throttle: this.state === 'title' ? 0 : inp.throttle, brake: 1, handbrake: 1 };
+    // 街機模式：空白鍵 = 甩尾；模擬模式：空白鍵 = 手煞車
+    let drive = { steer: inp.steer, throttle: inp.throttle, brake: inp.brake, handbrake: ARC.enabled ? 0 : inp.handbrake, drift: ARC.enabled ? inp.handbrake : 0 };
+    if (this.state === 'title' || this.state === 'countdown') drive = { steer: inp.steer, throttle: this.state === 'title' ? 0 : inp.throttle, brake: 1, handbrake: 1, drift: 0 };
     if (this.state === 'countdown') {
       const prev = Math.ceil(this.countT);
       this.countT -= dt;
@@ -442,7 +498,7 @@ class Game {
     for (let i = 0; i < 4; i++) {
       const w = car.wheels[i], vw = v.wheels[i];
       if (i < 2) vw.pivot.rotation.y = car.steerAngle;
-      vw.spin.rotation.x = w.spin * (v.flipSpin || 1);
+      vw.spin.rotation.x = w.spin;
       vw.pivot.position.y = vw.baseY + clamp((w.Fz - 3400) / 70000, -0.03, 0.03);
     }
     const braking = car.brake > 0.1 || car.handbrake > 0.1;
@@ -461,14 +517,14 @@ class Game {
       this.skids.add(i, wx, y, wz, car.vx / (car.speed || 1), car.vz / (car.speed || 1), car.speed > 0.8 ? intensity : 0);
       // 煙：後輪為主
       const smokeK = (i >= 2 ? 1 : 0.35) * VIS.smokeAmount;
-      const amt = clamp((slip - 1.4) * 0.6, 0, 1.8) * smokeK * clamp(car.speed / 15, 0.05, 1);
+      const amt = clamp((slip - 1.4) * 0.5, 0, 1.0) * smokeK * clamp(car.speed / 15, 0.05, 1);
       let n = amt * dt * 55;
       while (n > 0) {
         if (Math.random() < n) {
           this.smoke.emit(
             wx + (Math.random() - 0.5) * 0.5, y + 0.25, wz + (Math.random() - 0.5) * 0.5,
             car.vx * 0.3 + (Math.random() - 0.5) * 2.2, 0.4 + Math.random() * 0.8, car.vz * 0.3 + (Math.random() - 0.5) * 2.2,
-            0.9 + Math.random() * 0.6, 2.0 + Math.random() * 1.4, 0.3 + 0.08 * Math.min(1, amt), 2.2 + Math.random() * 1.2,
+            0.8 + Math.random() * 0.5, 1.6 + Math.random() * 1.0, 0.24 + 0.06 * Math.min(1, amt), 1.5 + Math.random() * 0.9,
           );
         }
         n -= 1;
