@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>秋名山 AKINA DOWNHILL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "postprocessing": "https://cdn.jsdelivr.net/npm/postprocessing@6.36.4/build/index.js",
+  "n8ao": "https://cdn.jsdelivr.net/npm/n8ao@2.0.1/dist/N8AO.js"
+} }
+</script>
+<style>
+  :root { --pink: #ff2d6f; --drift: #ffe600; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: 'Noto Sans TC', system-ui, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+  #app canvas { display: block; }
+  .hide { display: none !important; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .hud-el { position: absolute; transform-origin: center; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+  #hud.dev-drag { pointer-events: auto; }
+  #hud.dev-drag .hud-el { outline: 1px dashed rgba(0,255,200,.7); cursor: move; background: rgba(0,255,200,.06); }
+  [data-id=timer] { font-family: Rajdhani, sans-serif; background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.1)); padding: 8px 16px 10px 12px; border-left: 3px solid var(--pink); min-width: 200px; }
+  .t-label { font-size: 12px; letter-spacing: 3px; color: #bbb; font-weight: 700; }
+  .t-main { font-size: 38px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .t-row { display: flex; justify-content: space-between; gap: 14px; font-size: 14px; color: #ccc; font-weight: 700; margin-top: 2px; }
+  .t-row b { color: #fff; font-variant-numeric: tabular-nums; }
+  .t-row i { font-style: normal; } .t-row i.g { color: #35e08a; } .t-row i.r { color: #ff5b5b; }
+  .t-prog { height: 3px; background: rgba(255,255,255,.18); margin-top: 7px; } .t-prog div { height: 100%; background: var(--pink); width: 0; }
+  [data-id=drift] { text-align: center; white-space: nowrap; font-family: Rajdhani, sans-serif; }
+  .d-main { font-size: 58px; font-weight: 700; font-style: italic; color: var(--drift); line-height: 1; -webkit-text-stroke: 1.5px rgba(0,0,0,.55); min-height: 58px; }
+  .d-main #dMult { font-size: 42px; color: #fff; }
+  [data-id=drift]:not(.active) .d-main { opacity: 0; }
+  [data-id=drift].active .d-main { animation: throb .5s ease-in-out infinite alternate; }
+  @keyframes throb { from { transform: scale(1); } to { transform: scale(1.04); } }
+  .d-sub { font-size: 17px; font-weight: 700; letter-spacing: 1px; color: #eee; }
+  .d-sub b { color: var(--drift); }
+  .d-bank { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); font-size: 34px; font-weight: 700; font-style: italic; opacity: 0; color: var(--drift); }
+  .d-bank.pop { animation: bank 1.6s ease-out forwards; }
+  @keyframes bank { 0% { opacity: 0; transform: translate(-50%, 10px) scale(.8); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.15); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -30px) scale(1); } }
+  [data-id=hint] { font-size: 14px; color: #ddd; white-space: nowrap; }
+  [data-id=hint] b { color: var(--pink); }
+
+  #count { position: fixed; left: 50%; top: 40%; transform: translate(-50%,-50%); font: italic 700 140px Rajdhani, sans-serif; color: #fff; text-shadow: 0 0 30px var(--pink), 0 6px 12px #000; z-index: 6; pointer-events: none; }
+  #count.pop { animation: cpop .9s ease-out; }
+  @keyframes cpop { from { transform: translate(-50%,-50%) scale(1.8); opacity: 0; } 25% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+  #flash { position: fixed; left: 50%; top: 28%; transform: translateX(-50%); font-size: 22px; font-weight: 700; padding: 8px 18px; background: rgba(0,0,0,.55); border-left: 3px solid var(--pink); opacity: 0; z-index: 7; pointer-events: none; }
+  #flash.show { animation: flash 1.8s ease-out forwards; }
+  @keyframes flash { 0%,70% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ---- 覆蓋畫面 ---- */
+  .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; }
+  #loading { background: #07080b; font: 700 22px Rajdhani, sans-serif; letter-spacing: 4px; z-index: 30; }
+  #title { background: radial-gradient(ellipse at 30% 40%, rgba(10,12,20,.35), rgba(0,0,0,.82)); }
+  .title-box { max-width: 720px; padding: 32px; }
+  .title-box h1 { margin: 0; font: italic 900 84px/0.95 'Noto Sans TC', sans-serif; letter-spacing: 4px; text-shadow: 0 6px 30px rgba(0,0,0,.7); }
+  .title-box h1 span { display: block; font: italic 700 40px Rajdhani, sans-serif; letter-spacing: 10px; color: var(--pink); }
+  .title-box p { color: #cfd3da; line-height: 1.7; }
+  .keys { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px 14px; font-size: 14px; margin: 18px 0 26px; color: #ddd; }
+  .keys kbd, #help kbd { font: 700 12px Rajdhani, monospace; background: #22252c; border: 1px solid #444; border-bottom-width: 3px; border-radius: 4px; padding: 2px 7px; color: #fff; white-space: nowrap; }
+  #startBtn { font: italic 700 26px Rajdhani, sans-serif; letter-spacing: 4px; background: var(--pink); color: #fff; border: 0; padding: 12px 42px; cursor: pointer; clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%); }
+  #startBtn:hover { filter: brightness(1.15); }
+  #finish { background: rgba(0,0,0,.55); pointer-events: none; }
+  .fin-box { background: rgba(10,12,16,.88); border-top: 4px solid var(--pink); padding: 28px 44px; text-align: center; min-width: 360px; }
+  .fin-box h2 { margin: 0 0 12px; font: italic 900 46px Rajdhani, sans-serif; letter-spacing: 6px; }
+  .fin-row { display: flex; justify-content: space-between; gap: 30px; font: 700 22px Rajdhani, sans-serif; margin: 6px 0; }
+  .fin-row b { font-size: 28px; }
+  #fNew { color: var(--drift); font: italic 700 24px Rajdhani; letter-spacing: 3px; }
+  #help { background: rgba(0,0,0,.6); z-index: 25; }
+  #help .box { background: rgba(12,14,18,.95); padding: 24px 32px; border-left: 4px solid var(--pink); line-height: 2; }
+
+  /* ---- DEV ---- */
+  #devBtn { position: fixed; right: 10px; bottom: 10px; z-index: 40; width: 34px; height: 34px; border-radius: 50%; border: 1px solid #555; background: rgba(0,0,0,.5); color: #ccc; font-size: 18px; cursor: pointer; opacity: .5; }
+  #devBtn:hover { opacity: 1; }
+  #muteBtn { position: fixed; right: 52px; bottom: 10px; z-index: 40; width: 34px; height: 34px; border-radius: 50%; border: 1px solid #555; background: rgba(0,0,0,.5); color: #fff; font-size: 16px; cursor: pointer; opacity: .8; }
+  #muteBtn:hover { opacity: 1; }
+  #dev { position: fixed; right: 0; top: 0; bottom: 0; width: 360px; z-index: 39; background: rgba(12,14,18,.94); border-left: 1px solid #2c313a; overflow-y: auto; font-size: 12px; transform: translateX(100%); transition: transform .2s; user-select: text; -webkit-user-select: text; }
+  #dev.open { transform: none; }
+  .dv-head { position: sticky; top: 0; background: #151a22; display: flex; align-items: center; gap: 8px; padding: 10px 12px; z-index: 2; border-bottom: 1px solid #2c313a; }
+  .dv-head b { color: #00ffc8; font-size: 14px; } .dv-head button { margin-left: auto; }
+  .dv-note { color: #8a93a3; font-size: 11px; }
+  .dv-sec { border-bottom: 1px solid #222832; }
+  .dv-title { padding: 8px 12px; cursor: pointer; font-weight: 700; color: #cfd6e2; }
+  .dv-title::before { content: '▸ '; color: #00ffc8; } .dv-sec.open .dv-title::before { content: '▾ '; }
+  .dv-body { display: none; padding: 2px 12px 10px; } .dv-sec.open .dv-body { display: block; }
+  .dv-row { display: grid; grid-template-columns: 112px 1fr 62px; gap: 6px; align-items: center; margin: 3px 0; }
+  .dv-row label { color: #aab2c0; }
+  .dv-row input[type=range] { width: 100%; accent-color: #00ffc8; }
+  .dv-row input[type=number], .dv-row select { width: 100%; background: #0b0d11; color: #fff; border: 1px solid #333a45; border-radius: 3px; padding: 2px 4px; font-size: 11px; }
+  .dv-row select { grid-column: span 2; }
+  .dv-btns { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 8px; }
+  #dev button { background: #232a35; color: #dfe6f1; border: 1px solid #39424f; border-radius: 3px; padding: 4px 8px; cursor: pointer; font-size: 11px; }
+  #dev button:hover { background: #2e3746; } #dev button.hi { background: #00b894; color: #001; border-color: #00ffc8; font-weight: 700; }
+  #dvTele { font: 11px/1.45 ui-monospace, Menlo, monospace; color: #9fe8d0; background: #07090c; padding: 6px; margin: 0; white-space: pre; overflow-x: auto; }
+  #dvJson { width: 100%; height: 160px; background: #07090c; color: #cde; border: 1px solid #333a45; font: 11px ui-monospace, Menlo, monospace; }
+
+  /* ---- 觸控 ---- */
+  .tc { display: none; position: fixed; z-index: 8; width: 84px; height: 84px; border-radius: 50%; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.35); font: 700 16px Rajdhani; color: #fff; align-items: center; justify-content: center; }
+  .tc.on { background: rgba(255,45,111,.45); }
+  body.touch .tc { display: flex; }
+  #tcL { left: 22px; bottom: 30px; } #tcR { left: 124px; bottom: 30px; }
+  #tcGas { right: 26px; bottom: 30px; width: 96px; height: 96px; } #tcBrake { right: 136px; bottom: 30px; } #tcHand { right: 90px; bottom: 136px; width: 70px; height: 70px; font-size: 13px; }
+  @media (max-width: 700px) { .title-box h1 { font-size: 54px; } .keys { grid-template-columns: auto 1fr; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud"></div>
+<div id="count"></div>
+<div id="flash"></div>
+<button id="muteBtn" title="音效開關（K）">🔇</button>
+
+<div id="loading" class="overlay"><div style="text-align:center"><div id="loadText">載入素材中…</div><div style="width:320px;height:3px;background:#222;margin-top:14px"><div id="loadBar" style="height:100%;width:0;background:var(--pink);transition:width .2s"></div></div></div></div>
+
+<div id="title" class="overlay">
+  <div class="title-box">
+    <h1>秋名山<span>AKINA DOWNHILL</span></h1>
+    <p>全長 2.9 km・落差 155 m・五連髮夾。從山頂一路下坡衝到終點，甩尾可累積分數倍率，撞到護欄會中斷連段。</p>
+    <div class="keys">
+      <kbd>W / ↑</kbd><span>油門</span><kbd>S / ↓</kbd><span>煞車 / 倒車</span>
+      <kbd>A D / ← →</kbd><span>轉向</span><kbd>Space</kbd><span>手煞車</span>
+      <kbd>E / Q</kbd><span>升 / 降檔</span><kbd>M</kbd><span>自排 / 手排</span>
+      <kbd>C</kbd><span>切換視角</span><kbd>R</kbd><span>拉回路面</span>
+      <kbd>T</kbd><span>重新開始</span><kbd>N</kbd><span>日 / 夜</span>
+      <kbd>H</kbd><span>說明</span><kbd>`</kbd><span>DEV 微調</span>
+    </div>
+    <button id="startBtn">START ▸</button>
+    <p style="font-size:13px;color:#8a919c;margin-top:18px">支援 Xbox / PS 手把：RT 油門・LT 煞車・A 手煞車・LB/RB 換檔・Y 視角</p>
+  </div>
+</div>
+
+<div id="finish" class="overlay hide">
+  <div class="fin-box">
+    <h2>GOAL</h2>
+    <div id="fNew">NEW RECORD!</div>
+    <div class="fin-row"><span>TIME</span><b id="fTime"></b></div>
+    <div class="fin-row"><span>BEST</span><b id="fBest"></b></div>
+    <div class="fin-row"><span>DRIFT</span><b id="fDrift"></b></div>
+    <p style="color:#aaa">按 <b>T</b> 重新挑戰</p>
+  </div>
+</div>
+
+<div id="help" class="overlay hide" onclick="this.classList.add('hide')">
+  <div class="box">
+    <b style="color:var(--pink)">駕駛技巧</b><br>
+    ・入彎前 <kbd>S</kbd> 重煞讓重量前移，車尾變輕 → 轉向更容易甩出<br>
+    ・<kbd>Space</kbd> 手煞車點一下讓後輪鎖死，車尾滑出後立刻補油門<br>
+    ・甩尾中放開方向鍵，前輪會自動對準行進方向（反打輔助）<br>
+    ・油門控制甩尾角度：多給油 → 角度加大；收油 → 抓地恢復<br>
+    ・五連髮夾：外 → 內 → 外，出彎早點補油<br>
+    <span style="color:#888">點擊任意處關閉</span>
+  </div>
+</div>
+
+<div class="tc" id="tcL">◀</div><div class="tc" id="tcR">▶</div>
+<div class="tc" id="tcBrake">BRAKE</div><div class="tc" id="tcGas">GAS</div><div class="tc" id="tcHand">E-BRAKE</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
