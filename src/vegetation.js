@@ -52,17 +52,17 @@ export function needleTexture() {
 function pineGeometry(seed, bareFrac = 0.32) {
   const R = rng(seed);
   const pos = [], nrm = [], uv = [], col = [];
-  const whorls = 16;
+  const whorls = 12;
   for (let wi = 0; wi < whorls; wi++) {
     const t = wi / (whorls - 1);
     const y = bareFrac + (1 - bareFrac) * t * 0.97;
     const L = 0.26 * Math.pow(1 - t, 0.85) + 0.035;
-    const n = wi > whorls - 3 ? 4 : 6;
+    const n = wi > whorls - 3 ? 4 : 5;
     for (let k = 0; k < n; k++) {
       const a = (k / n) * Math.PI * 2 + wi * 2.39996 + (R() - 0.5) * 0.5;
       const dx = Math.cos(a), dz = Math.sin(a);
       const len = L * (0.8 + R() * 0.4);
-      const w = len * 0.62;
+      const w = len * 0.72;
       const droop = len * (0.25 + R() * 0.25) - 0.02;
       const rise = len * 0.12;
       const roll = (R() - 0.5) * 1.6;
@@ -223,12 +223,16 @@ export function buildGrassAssets() {
 
 // ---- 分區塊 LOD 管理 ----
 export class ChunkLOD {
-  constructor() { this.chunks = []; }
-  add(center, near, far, nearDist) { this.chunks.push({ center, near, far, nearDist }); }
+  constructor() { this.chunks = []; this.dist = { tree: 230, grass: 150 }; }
+  add(center, near, far, kind) { this.chunks.push({ center, near, far, kind }); }
+  // 樹木是否投射陰影（低畫質關閉）
+  setTreeShadow(on) {
+    for (const c of this.chunks) if (c.kind === 'tree') for (const m of [...(c.near || []), ...(c.far || [])]) m.castShadow = on;
+  }
   update(camPos) {
     for (const c of this.chunks) {
       const d = c.center.distanceTo(camPos);
-      const isNear = d < c.nearDist;
+      const isNear = d < this.dist[c.kind];
       if (c.near) for (const m of c.near) m.visible = isNear;
       if (c.far) for (const m of c.far) m.visible = !isNear;
     }

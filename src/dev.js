@@ -37,7 +37,7 @@ const SCHEMA = [
   ]],
   ['畫面', 'VIS', [
     ['carColor', '車色', 'color'], ['bodyRoll', '車身側傾', 0, 0.08, 0.001], ['bodyPitch', '車身俯仰', 0, 0.05, 0.001],
-    ['smokeAmount', '煙量', 0, 3, 0.05], ['sunAzimuth', '天空/太陽旋轉°', 0, 360, 1], ['ao', '環境光遮蔽 AO', 'bool'], ['bloom', '光暈 Bloom', 0, 1.5, 0.01],
+    ['smokeAmount', '煙量', 0, 3, 0.05], ['sunAzimuth', '天空/太陽旋轉°', 0, 360, 1], ['ao', '環境光遮蔽 AO（高畫質）', 'bool'], ['bloom', '光暈 Bloom', 0, 1.5, 0.01], ['dynamicRes', '動態解析度', 'bool'],
     ['fogDensity', '霧濃度', 0, 0.006, 0.0001], ['exposure', '曝光', 0.3, 2, 0.01], ['night', '夜間模式', 'bool'],
   ]],
   ['甩尾計分', 'DRIFT', [
@@ -208,6 +208,7 @@ export class DevPanel {
     const w = car.wheels, n = ['FL', 'FR', 'RL', 'RR'];
     const lines = w.map((x, i) => `${n[i]} Fz ${x.Fz.toFixed(0).padStart(5)}  α ${(x.alpha * 57.3).toFixed(1).padStart(6)}°  sx ${x.sx.toFixed(2).padStart(6)}  s ${x.slip.toFixed(2).padStart(5)}`);
     lines.push(`速度 ${(car.speed * 3.6).toFixed(1)} km/h  甩尾角 ${car.driftAngle.toFixed(1)}°  偏航 ${car.yawRate.toFixed(2)} rad/s`);
+    const g = this.game; lines.push(`FPS ${g.fps.toFixed(0)}  畫質 ${g.preset.label}  解析度 ${(g.resScale * 100).toFixed(0)}%  三角形 ${(g.renderer.info.render.triangles / 1000).toFixed(0)}k`);
     lines.push(`轉向 ${(car.steerAngle * 57.3).toFixed(1)}°  檔 ${car.gear}  rpm ${car.rpm.toFixed(0)}  ax ${car.axS.toFixed(1)} ay ${car.ayS.toFixed(1)}`);
     this.el.querySelector('#dvTele').textContent = lines.join('\n');
   }

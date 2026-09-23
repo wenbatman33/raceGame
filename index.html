@@ -81,6 +81,8 @@
   #devBtn:hover { opacity: 1; }
   #muteBtn { position: fixed; right: 52px; bottom: 10px; z-index: 40; width: 34px; height: 34px; border-radius: 50%; border: 1px solid #555; background: rgba(0,0,0,.5); color: #fff; font-size: 16px; cursor: pointer; opacity: .8; }
   #muteBtn:hover { opacity: 1; }
+  #qualityBtn { position: fixed; right: 94px; bottom: 10px; z-index: 40; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid #555; background: rgba(0,0,0,.5); color: #fff; font: 700 13px 'Noto Sans TC', sans-serif; cursor: pointer; opacity: .8; }
+  #qualityBtn:hover { opacity: 1; }
   #dev { position: fixed; right: 0; top: 0; bottom: 0; width: 360px; z-index: 39; background: rgba(12,14,18,.94); border-left: 1px solid #2c313a; overflow-y: auto; font-size: 12px; transform: translateX(100%); transition: transform .2s; user-select: text; -webkit-user-select: text; }
   #dev.open { transform: none; }
   .dv-head { position: sticky; top: 0; background: #151a22; display: flex; align-items: center; gap: 8px; padding: 10px 12px; z-index: 2; border-bottom: 1px solid #2c313a; }
@@ -116,6 +118,7 @@
 <div id="count"></div>
 <div id="flash"></div>
 <button id="muteBtn" title="音效開關（K）">🔇</button>
+<button id="qualityBtn" title="畫質切換（G）">畫質 中</button>
 
 <div id="loading" class="overlay"><div style="text-align:center"><div id="loadText">載入素材中…</div><div style="width:320px;height:3px;background:#222;margin-top:14px"><div id="loadBar" style="height:100%;width:0;background:var(--pink);transition:width .2s"></div></div></div></div>
 
@@ -130,6 +133,7 @@
       <kbd>C</kbd><span>切換視角</span><kbd>R</kbd><span>拉回路面</span>
       <kbd>T</kbd><span>重新開始</span><kbd>N</kbd><span>日 / 夜</span>
       <kbd>H</kbd><span>說明</span><kbd>`</kbd><span>DEV 微調</span>
+      <kbd>K</kbd><span>音效開關</span><kbd>G</kbd><span>畫質 低/中/高</span>
     </div>
     <button id="startBtn">START ▸</button>
     <p style="font-size:13px;color:#8a919c;margin-top:18px">支援 Xbox / PS 手把：RT 油門・LT 煞車・A 手煞車・LB/RB 換檔・Y 視角</p>

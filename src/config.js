@@ -84,7 +84,8 @@ export const VIS = {
   exposure: 0.85,
   ao: true,              // 環境光遮蔽
   bloom: 0.25,
-  pixelRatio: 1.5,
+  quality: 'medium',     // low / medium / high
+  dynamicRes: true,      // 掉幀時自動降解析度
   night: false,
 };
 

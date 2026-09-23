@@ -20,6 +20,12 @@ import { Input } from './input.js';
 import { DevPanel, loadSaved } from './dev.js';
 
 const PHYS_DT = 1 / 600;
+// 畫質預設：pr=像素比上限、shadow=陰影貼圖、range=陰影範圍(m)、tree/grass=高細節距離(m)
+const PRESETS = {
+  low:    { label: '低', pr: 0.85, ao: false, bloom: false, smaa: false, shadow: 1024, range: 35, tree: 110, grass: 60,  treeShadow: false },
+  medium: { label: '中', pr: 1.0,  ao: false, bloom: true,  smaa: true,  shadow: 2048, range: 45, tree: 160, grass: 100, treeShadow: true },
+  high:   { label: '高', pr: 1.5,  ao: true,  bloom: true,  smaa: true,  shadow: 4096, range: 60, tree: 230, grass: 150, treeShadow: true },
+};
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
@@ -45,7 +51,7 @@ class Game {
     const savedTune = loadSaved();
     // ---- 渲染器 ----
     const r = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    r.setPixelRatio(Math.min(devicePixelRatio, VIS.pixelRatio));
+    r.setPixelRatio(1);
     r.setSize(innerWidth, innerHeight);
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping;
@@ -70,7 +76,7 @@ class Game {
     this.hemi = new THREE.HemisphereLight(0x4060a0, 0x101010, 0); this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight(0xfff1de, 3.4);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.mapSize.set(2048, 2048);
     const sc = sun.shadow.camera; sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 500;
     sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.05; sc.updateProjectionMatrix();
     this.scene.add(sun, sun.target);
@@ -121,7 +127,7 @@ class Game {
     this.smaaPass = new SMAAPass(innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio()); composer.addPass(this.smaaPass);
     this.composer = composer;
     addEventListener('resize', () => {
-      r.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+      r.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); this.resScale = 1; this.applyPixelRatio();
       this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
     });
 
@@ -130,6 +136,9 @@ class Game {
 
     $('startBtn').onclick = () => this.begin();
     $('muteBtn').onclick = (e) => { e.currentTarget.blur(); this.action('mute'); };
+    $('qualityBtn').onclick = (e) => { e.currentTarget.blur(); this.action('quality'); };
+    this.resScale = 1; this.fpsAcc = 0; this.fpsN = 0; this.fps = 60;
+    this.applyQuality();
     addEventListener('keydown', (e) => { if (this.state === 'title' && (e.code === 'Enter' || e.code === 'Space')) this.begin(); });
     this.last = performance.now();
     r.setAnimationLoop(() => this.frame());
@@ -159,11 +168,52 @@ class Game {
     }
     this.scene.fog.density = VIS.fogDensity;
     if (this.world?.far) this.world.far.visible = !night;
-    if (this.aoPass) { this.aoPass.enabled = VIS.ao; this.renderPass.enabled = !VIS.ao; }
     if (this.bloomPass) this.bloomPass.strength = VIS.bloom * (night ? 2 : 1);
+    if (this.world?.lod && this.composer) this.applyQuality();
     this.carView.setColor(VIS.carColor);
     this.carView.setNight(night);
     this.smoke.mat.uniforms.color.value.set(night ? 0x3a3d44 : 0xe8e8e8);
+  }
+
+  // ---------- 畫質 ----------
+  get preset() { return PRESETS[VIS.quality] || PRESETS.medium; }
+
+  applyPixelRatio() {
+    const pr = Math.min(devicePixelRatio, this.preset.pr) * this.resScale;
+    this.renderer.setPixelRatio(pr);
+    this.composer.setPixelRatio(pr);
+  }
+
+  applyQuality() {
+    const q = this.preset;
+    const ao = q.ao && VIS.ao;
+    this.aoPass.enabled = ao; this.renderPass.enabled = !ao;
+    this.bloomPass.enabled = q.bloom && VIS.bloom > 0;
+    this.smaaPass.enabled = q.smaa;
+    // 全部後製都關閉時直接渲染，省掉整條後製管線
+    this.bypassPost = !ao && !this.bloomPass.enabled && !q.smaa;
+    const sun = this.sun;
+    if (sun.shadow.mapSize.x !== q.shadow) {
+      sun.shadow.mapSize.set(q.shadow, q.shadow);
+      if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+    }
+    const c = sun.shadow.camera; c.left = c.bottom = -q.range; c.right = c.top = q.range; c.updateProjectionMatrix();
+    this.world.lod.dist.tree = q.tree; this.world.lod.dist.grass = q.grass;
+    this.world.lod.setTreeShadow(q.treeShadow);
+    this.resScale = 1; this.applyPixelRatio();
+    $('qualityBtn').textContent = '畫質 ' + q.label;
+  }
+
+  // 動態解析度：每秒檢查平均幀時間，掉幀就降解析度，順暢時慢慢回升
+  updateDynamicRes(dt) {
+    this.fpsAcc += dt; this.fpsN++;
+    if (this.fpsAcc < 1) return;
+    this.fps = this.fpsN / this.fpsAcc; this.fpsAcc = 0; this.fpsN = 0;
+    if (!VIS.dynamicRes || this.state === 'title') return;
+    let s = this.resScale;
+    if (this.fps < 45) s = Math.max(0.7, s - 0.1);
+    else if (this.fps > 57 && s < 1) s = Math.min(1, s + 0.05);
+    if (s !== this.resScale) { this.resScale = s; this.applyPixelRatio(); }
   }
 
   // ---------- 流程 ----------
@@ -236,6 +286,11 @@ class Game {
         this.flash(m ? '靜音' : '音效開啟'); break;
       }
       case 'help': $('help').classList.toggle('hide'); break;
+      case 'quality': {
+        const order = ['low', 'medium', 'high'];
+        VIS.quality = order[(order.indexOf(VIS.quality) + 1) % 3];
+        this.applyQuality(); this.dev.save(); this.flash('畫質：' + this.preset.label); break;
+      }
       case 'dev': this.dev.toggle(); break;
       case 'pause': if (!$('help').classList.contains('hide')) $('help').classList.add('hide'); else this.dev.toggle(false); break;
     }
@@ -336,7 +391,8 @@ class Game {
     });
     this.dev.updateTelemetry(car);
     this.world.lod.update(this.camera.position);
-    this.composer.render();
+    if (this.bypassPost) this.renderer.render(this.scene, this.camera); else this.composer.render();
+    this.updateDynamicRes(dt);
   }
 
   finishRace() {
@@ -405,7 +461,7 @@ class Game {
       this.skids.add(i, wx, y, wz, car.vx / (car.speed || 1), car.vz / (car.speed || 1), car.speed > 0.8 ? intensity : 0);
       // 煙：後輪為主
       const smokeK = (i >= 2 ? 1 : 0.35) * VIS.smokeAmount;
-      const amt = clamp((slip - 1.4) * 0.6, 0, 1.8) * smokeK * clamp(car.speed / 12, 0.15, 1);
+      const amt = clamp((slip - 1.4) * 0.6, 0, 1.8) * smokeK * clamp(car.speed / 15, 0.05, 1);
       let n = amt * dt * 55;
       while (n > 0) {
         if (Math.random() < n) {

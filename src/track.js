@@ -111,7 +111,7 @@ export class Track {
       minx = Math.min(minx, this.px[i]); maxx = Math.max(maxx, this.px[i]);
       minz = Math.min(minz, this.pz[i]); maxz = Math.max(maxz, this.pz[i]);
     }
-    const M = 520, step = 4;
+    const M = 520, step = 5;
     this.tMinX = Math.floor((minx - M) / step) * step;
     this.tMinZ = Math.floor((minz - M) / step) * step;
     this.tw = Math.ceil((maxx - minx + 2 * M) / step) + 1;

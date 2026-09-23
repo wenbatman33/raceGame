@@ -311,7 +311,7 @@ export function buildWorld(scene, track, assets) {
       near.push(leaves, trunk); far.push(imp);
     });
     center.y = cy / Math.max(1, cn);
-    lod.add(center, near, far, 230);
+    lod.add(center, near, far, 'tree');
   }
   S.set(1, 1, 1);
 
@@ -340,7 +340,7 @@ export function buildWorld(scene, track, assets) {
       tint.setHSL(0.18 + R() * 0.08, 0.35 + R() * 0.3, 0.55 + R() * 0.4); m.setColorAt(j, tint);
     });
     m.computeBoundingSphere(); m.receiveShadow = true; group.add(m);
-    lod.add(new THREE.Vector3((a + 0.5) * 80, list[0][1], (b + 0.5) * 80), [m], null, 150);
+    lod.add(new THREE.Vector3((a + 0.5) * 80, list[0][1], (b + 0.5) * 80), [m], null, 'grass');
   }
   S.set(1, 1, 1);
   group.userData.lod = lod;
